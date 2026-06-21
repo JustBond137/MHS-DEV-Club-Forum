@@ -251,6 +251,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div class="gh-badge" id="gh-badge">PHANTOM</div>
     <div class="gh-name" id="gh-name">Team</div>
     <div style="flex:1"></div>
+    <div id="fs-lock-indicator" style="font-size:.58rem;color:var(--green);letter-spacing:.08em;display:flex;align-items:center;gap:.3rem;margin-right:.4rem" title="Hold H+O+S+T together for 3 seconds to release lock (staff only)">🔒 LOCKED</div>
     <button class="ref-hdr-btn" id="ref-btn" onclick="toggleRef()">[ REF ]</button>
     <div class="gh-xp">
       <div class="gh-xp-num" id="gh-xp">0</div>
@@ -313,8 +314,8 @@ var G={
 };
 
 function awardXP(id,pts){
-  // idempotent: each id can only award XP once
-  if(G.xpLog[id])return;
+  // idempotent: each id can only award XP once, even if pts is 0
+  if(Object.prototype.hasOwnProperty.call(G.xpLog,id))return;
   G.xpLog[id]=pts;
   G.xp+=pts;
   var el=document.getElementById('gh-xp');
@@ -375,6 +376,9 @@ function confirmName(){
   var val=document.getElementById('nb-input').value.trim();
   if(!val){document.getElementById('nb-input').style.borderColor='var(--red)';return;}
   G.name=val;
+  // Request fullscreen NOW, inside the click handler — browsers require this to be
+  // triggered directly by a user gesture or the request is silently rejected.
+  enterFullscreenLock();
   var btn=document.getElementById('nb-btn');
   var inp=document.getElementById('nb-input');
   if(btn){btn.disabled=true;btn.textContent='DEPLOYING...';}
@@ -389,7 +393,8 @@ function confirmName(){
     '<circle id="nb-ring" fill="none" stroke="var(--blue)" stroke-width="4" cx="34" cy="34" r="30" stroke-linecap="round" stroke-dasharray="188.5" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear,stroke .4s"/>'+
     '</svg>'+
     '<div id="nb-cdnum" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:1.6rem;color:var(--blue)">5</div>'+
-    '</div>';
+    '</div>'+
+    '<div style="font-size:.62rem;color:var(--muted);margin-top:.6rem;letter-spacing:.05em">FULLSCREEN LOCK ACTIVE — exiting fullscreen during the mission disqualifies your team</div>';
   if(box)box.appendChild(cdDiv);
   var cdVal=5;
   var cdInt=setInterval(function(){
@@ -404,6 +409,98 @@ function confirmName(){
     if(cdVal<=0){clearInterval(cdInt);initGame();}
   },1000);
 }
+
+// ── FULLSCREEN LOCKDOWN ──
+var fsLockActive=false;
+var fsGracePeriod=false;// true briefly during legitimate screen transitions (e.g. game end) so we don't false-DQ on our own reload/complete flow
+
+function enterFullscreenLock(){
+  var el=document.documentElement;
+  var req=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen;
+  if(req){
+    try{
+      var p=req.call(el);
+      if(p&&p.catch)p.catch(function(){/* request rejected — proceed anyway, can't force it */});
+    }catch(e){/* fullscreen unsupported or blocked — game still playable, just unlocked */}
+  }
+  fsLockActive=true;
+}
+
+function exitFullscreenLock(){
+  fsLockActive=false;
+  var ex=document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen;
+  if(ex&&isCurrentlyFullscreen()){try{ex.call(document);}catch(e){}}
+}
+
+function isCurrentlyFullscreen(){
+  return !!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement);
+}
+
+function handleFullscreenChange(){
+  if(!fsLockActive||fsGracePeriod)return;
+  if(!isCurrentlyFullscreen()){
+    disqualifyTeam('Exited fullscreen mode');
+  }
+}
+
+function handleVisibilityChange(){
+  if(!fsLockActive||fsGracePeriod)return;
+  if(document.hidden){
+    disqualifyTeam('Switched away from the game tab/window');
+  }
+}
+
+function disqualifyTeam(reason){
+  if(!fsLockActive)return;// already handled
+  fsLockActive=false;
+  window.TEAM_DISQUALIFIED={
+    teamName:G.name||'(unnamed)',
+    faction:G.faction||'(none)',
+    reason:reason,
+    timestamp:new Date().toISOString()
+  };
+  showDisqualifyScreen(reason);
+}
+
+function showDisqualifyScreen(reason){
+  document.body.innerHTML='<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#1a0508;color:#fff;font-family:var(--mono,monospace);padding:2rem;text-align:center">'+
+    '<div style="font-family:var(--display,sans-serif);font-size:3rem;color:#ff3d5a;letter-spacing:.1em;margin-bottom:1rem">DISQUALIFIED</div>'+
+    '<div style="font-size:.85rem;color:#ff8899;margin-bottom:.5rem">Team: '+(G.name||'(unnamed)')+' — '+(G.faction?G.faction.toUpperCase():'')+'</div>'+
+    '<div style="font-size:.8rem;color:#cc99aa;max-width:420px;line-height:1.6">Reason: '+reason+'<br><br>Fullscreen mode was required for the duration of this mission to ensure fair play. Please find a host to confirm this disqualification.</div>'+
+    '</div>';
+  document.addEventListener('fullscreenchange',handleFullscreenChange);
+}
+
+document.addEventListener('fullscreenchange',handleFullscreenChange);
+document.addEventListener('webkitfullscreenchange',handleFullscreenChange);
+document.addEventListener('mozfullscreenchange',handleFullscreenChange);
+document.addEventListener('MSFullscreenChange',handleFullscreenChange);
+document.addEventListener('visibilitychange',handleVisibilityChange);
+
+// ── HOST OVERRIDE — hold H, O, S, T together for 3 seconds to release the lock ──
+// Intentionally obscure so students don't stumble into it, but accessible to staff
+// if a team has a genuine technical issue and needs the lock released without a DQ.
+var hostKeysDown={};var hostHoldTimer=null;
+document.addEventListener('keydown',function(e){
+  var k=e.key.toLowerCase();
+  if(['h','o','s','t'].indexOf(k)===-1)return;
+  hostKeysDown[k]=true;
+  if(hostKeysDown.h&&hostKeysDown.o&&hostKeysDown.s&&hostKeysDown.t&&!hostHoldTimer){
+    hostHoldTimer=setTimeout(function(){
+      fsGracePeriod=true;
+      fsLockActive=false;
+      exitFullscreenLock();
+      var ind=document.getElementById('fs-lock-indicator');
+      if(ind){ind.textContent='🔓 UNLOCKED (host override)';ind.style.color='var(--amber)';}
+    },3000);
+  }
+});
+document.addEventListener('keyup',function(e){
+  var k=e.key.toLowerCase();
+  if(['h','o','s','t'].indexOf(k)===-1)return;
+  hostKeysDown[k]=false;
+  if(hostHoldTimer){clearTimeout(hostHoldTimer);hostHoldTimer=null;}
+});
 
 // ── INIT ──
 var gameStartTime=null;
@@ -487,24 +584,48 @@ var HASHES=[
 
 var M3PH=[
   {id:'p4',tier:4,title:'Crack the Password Hashes',diff:'elite',xp:20,type:'hashes',
-    body:'PHANTOM has exfiltrated Sector 7\'s password database. Passwords are stored as MD5 hashes. Crack them using CrackStation — each cracked hash = 2 XP, bonus 10 XP for cracking all 5.'},
+    body:'PHANTOM has exfiltrated Sector 7\'s password database. Passwords are stored as MD5 hashes. Use the built-in RAINBOW TABLE reference (no external site needed) to crack them — each cracked hash = 2 XP, bonus 10 XP for cracking all 5.'},
   {id:'p5',tier:4,title:'SQL Injection Bypass',diff:'elite',xp:10,
     body:'The Sector 7 login runs this query:\n\nSELECT * FROM users WHERE user=INPUT AND pass=INPUT\n\nWhich input in the USERNAME field bypasses the password check entirely?',
     prompt:'a) \'OR\'1\'=\'1\nb) admin\'--\nc) 1 UNION SELECT * FROM users--\nd) admin; DROP TABLE users--',
     format:'Type just the letter: a, b, c, or d',
     hint:'The -- symbol is a SQL comment. Anything after it is ignored. So the password check disappears entirely.',
     answer:'b',type:'text'},
+  {id:'p6',tier:4,title:'Privilege Escalation',diff:'elite',xp:14,
+    body:'PHANTOM has gained access as a low-level user "guest". The server has a misconfigured file that lists admin commands runnable by ANY user without a password — a classic privilege escalation flaw. What is this type of vulnerability called?',
+    prompt:'a) Cross-Site Scripting (XSS)\nb) Privilege Escalation via misconfiguration\nc) Buffer overflow\nd) DNS spoofing',
+    format:'Type just the letter: a, b, c, or d',
+    hint:'The vulnerability lets a low-privilege account perform high-privilege actions due to a configuration mistake, not a code flaw.',
+    answer:'b',type:'text'},
+  {id:'p7',tier:4,title:'Social Engineering Recon',diff:'elite',xp:12,
+    body:'Before attacking Sector 7\'s systems, PHANTOM researches staff on social media to find a target for a phishing email. What is this reconnaissance technique called?',
+    prompt:'a) OSINT (Open-Source Intelligence) gathering\nb) Port scanning\nc) Packet sniffing\nd) Fuzzing',
+    format:'Type just the letter: a, b, c, or d',
+    hint:'This is about collecting publicly available information about people, not scanning a network.',
+    answer:'a',type:'text'},
 ];
 
 // M3 AEGIS: replace IR plan with a structured quiz
 var M3AE=[
-  {id:'a4',tier:4,title:'Incident Response Quiz',diff:'elite',xp:20,type:'irquiz'},
+  {id:'a4',tier:4,title:'Incident Response Quiz',diff:'elite',xp:25,type:'irquiz'},
   {id:'a5',tier:4,title:'Password Policy Audit',diff:'elite',xp:10,
     body:'Rank these 5 passwords from weakest to strongest.',
     prompt:'a) P@ssw0rd (8 chars, mixed)\nb) hunter2 (7 chars, common word)\nc) correct-horse-battery-staple (28 chars, passphrase)\nd) x (1 char)\ne) Tr0ub4dor&3 (11 chars, complex)',
-    format:'Type 5 letters separated by commas, weakest first. Example format: d,b,a,e,c',
+    format:'Type 5 letters separated by commas, weakest first. Example format (not the real answer): a,e,c,b,d',
     hint:'Length always beats complexity. 1 char is always weakest. A 28-char passphrase beats all short passwords.',
     answer:'d,b,a,e,c',type:'text'},
+  {id:'a6',tier:4,title:'Secure Coding Review',diff:'elite',xp:12,
+    body:'A junior developer wrote this login function:\n\nfunction checkLogin(user, pass) {\n  let storedPass = database.get(user).password;\n  if (pass === storedPass) { return true; }\n}\n\nWhat is the main security flaw here?',
+    prompt:'a) The function name is unclear\nb) Passwords are compared and stored in plaintext, not hashed\nc) It should use a for-loop instead\nd) The variable names are too long',
+    format:'Type just the letter: a, b, c, or d',
+    hint:'Look at what storedPass actually is — a real password, not a hash. If the database leaks, every password is exposed instantly.',
+    answer:'b',type:'text'},
+  {id:'a7',tier:4,title:'Patch Priority Triage',diff:'elite',xp:12,
+    body:'Three vulnerabilities are reported at once. You can only patch one right now. Which gets fixed first?',
+    prompt:'a) A typo in the footer copyright year\nb) An SQL injection allowing full database access\nc) A slightly slow-loading images page\nd) A button that is 2px misaligned on mobile',
+    format:'Type just the letter: a, b, c, or d',
+    hint:'Rank by impact and exploitability. Which one, if exploited right now, causes the most damage?',
+    answer:'b',type:'text'},
 ];
 
 // IR Quiz questions
@@ -518,6 +639,12 @@ var IR_QUIZ=[
   {q:'Before patching the exploited vulnerability, what must you do?',
     opts:['a) Nothing — patch immediately','b) Preserve forensic evidence (disk images, logs)','c) Rebuild the server from scratch','d) Inform users first'],correct:'b',
     explain:'Evidence must be preserved before any changes. Forensics needs the original state to trace what happened and who did it.'},
+  {q:'Once the immediate threat is contained, who should be notified?',
+    opts:['a) No one — keep it internal forever','b) Only the IT department','c) Affected users, senior management, and relevant authorities if required by law','d) Wait until next financial year'],correct:'c',
+    explain:'Transparency matters. Affected users need to protect themselves (e.g. change passwords elsewhere). Some breaches legally require notifying authorities within a set timeframe.'},
+  {q:'After the incident is fully resolved, what is the final step in a proper response?',
+    opts:['a) Delete all logs to save storage','b) Conduct a post-mortem and update security policies','c) Immediately forget about it and move on','d) Blame whoever clicked the phishing link'],correct:'b',
+    explain:'A post-mortem documents what happened, why, and what changes prevent it recurring. Without this step, the same breach can happen again the same way.'},
 ];
 
 // ── RENDER ──
@@ -691,11 +818,38 @@ function castVote(vid,flagged,isVuln){
 }
 
 // ── HASH CARD ──
+// Built-in rainbow table — top 12 common passwords + their MD5 hashes
+// includes the 5 real targets plus 7 decoys so players actually have to look it up, not just guess
+var RAINBOW_TABLE=[
+  {hash:'5f4dcc3b5aa765d61d8327deb882cf99',plain:'password'},
+  {hash:'e10adc3949ba59abbe56e057f20f883e',plain:'123456'},
+  {hash:'25f9e794323b453885f5181f1b624d0b',plain:'123456789'},
+  {hash:'d8578edf8458ce06fbc5bb76a58c5ca4',plain:'qwerty'},
+  {hash:'482c811da5d5b4bc6d497ffa98491e38',plain:'password123'},
+  {hash:'81dc9bdb52d04dc20036dbd8313ed055',plain:'1234'},
+  {hash:'5d41402abc4b2a76b9719d911017c592',plain:'hello'},
+  {hash:'250cf8b51c773f3f8dc8b4be867a9a02',plain:'letmein123'},
+  {hash:'098f6bcd4621d373cade4e832627b4f6',plain:'test'},
+  {hash:'21232f297a57a5a743894a0e4a801fc3',plain:'admin'},
+  {hash:'7c6a180b36896a0a8c02787eeafb0e4c',plain:'password1'},
+  {hash:'fcea920f7412b5da7be0cf42b8c93759',plain:'1234567'},
+];
+
 function renderHashCard(c,isPh,doneKey){
   var cracked=0;for(var k in G.m3done){if(k.indexOf('h')===0&&k.length<=3)cracked++;}
   var html='<div class="cc-body">'+c.body+'</div>';
-  html+='<div class="ib ibc">Open <a href="https://crackstation.net" target="_blank" style="color:var(--cyan)">crackstation.net</a> in a new tab. Paste ALL 5 hashes at once, click CRACK HASHES, then type each result below. Each correct answer = 2 XP.</div>';
-  html+='<div style="background:var(--s3);border-radius:7px;overflow:auto;margin-bottom:.7rem"><table class="htbl"><thead><tr><th>System</th><th>MD5 Hash</th><th>Cracked password</th></tr></thead><tbody>';
+  html+='<div class="ib ibc">No need to leave the game. Use the RAINBOW TABLE below — find each hash, read off the cracked password, then type it into the matching box. Each correct answer = 2 XP.</div>';
+
+  // Rainbow table reference panel — built in, no external site
+  html+='<div style="background:var(--s3);border-radius:7px;padding:.7rem .85rem;margin-bottom:.85rem;max-height:220px;overflow-y:auto">';
+  html+='<div style="font-size:.62rem;letter-spacing:.12em;color:var(--cyan);text-transform:uppercase;margin-bottom:.5rem">// Rainbow Table Reference (MD5 → Password)</div>';
+  html+='<table class="htbl"><thead><tr><th>MD5 Hash</th><th>Password</th></tr></thead><tbody>';
+  for(var r=0;r<RAINBOW_TABLE.length;r++){
+    html+='<tr><td class="hval">'+RAINBOW_TABLE[r].hash+'</td><td style="color:#7a9ab8">'+RAINBOW_TABLE[r].plain+'</td></tr>';
+  }
+  html+='</tbody></table></div>';
+
+  html+='<div style="background:var(--s3);border-radius:7px;overflow:auto;margin-bottom:.7rem"><table class="htbl"><thead><tr><th>System</th><th>MD5 Hash to Crack</th><th>Your Answer</th></tr></thead><tbody>';
   for(var i=0;i<HASHES.length;i++){
     var h=HASHES[i];var hd=G.m3done&&G.m3done['h'+i];
     html+='<tr><td class="sysname">'+h.sys+'</td><td class="hval">'+h.hash+'</td><td class="hcell">';
@@ -727,39 +881,41 @@ function checkHash(i,ans,cid,cxp,doneKey){
 }
 
 // ── IR QUIZ (replaces free-text IR plan) ──
-var irQuizProgress={};// stores answers per question
+var irQuizProgress={};// stores 'correct' or 'wrong' per question, plus the chosen letter separately
+var irQuizChoice={};// stores the actual letter chosen, for review display
 
 function renderIRQuiz(c,isPh,doneKey){
-  var html='<div class="cc-body">02:47 LOCAL TIME. Sector 7 has been breached. Answer these 3 incident response questions correctly to complete this objective.</div>';
-  var allCorrect=true;
+  var html='<div class="cc-body">02:47 LOCAL TIME. Sector 7 has been breached. Answer these 5 incident response questions correctly to complete this objective.</div>';
   for(var i=0;i<IR_QUIZ.length;i++){
-    var q=IR_QUIZ[i];var qid='irq'+i;var answered=irQuizProgress[qid];
-    if(!answered)allCorrect=false;
-    html+='<div style="background:var(--s3);border-radius:7px;padding:.85rem;margin-bottom:.65rem;border:1px solid '+(answered==='correct'?'var(--gb)':'var(--bdr)')+'">';
-    html+='<div style="font-size:.78rem;color:'+(answered==='correct'?'var(--green)':'var(--text)')+';margin-bottom:.55rem;line-height:1.5">Q'+(i+1)+': '+q.q+'</div>';
+    var q=IR_QUIZ[i];var qid='irq'+i;var state=irQuizProgress[qid];// 'correct' | 'wrong' | undefined
+    var chosen=irQuizChoice[qid];
+    html+='<div style="background:var(--s3);border-radius:7px;padding:.85rem;margin-bottom:.65rem;border:1px solid '+(state==='correct'?'var(--gb)':'var(--bdr)')+'">';
+    html+='<div style="font-size:.78rem;color:'+(state==='correct'?'var(--green)':'var(--text)')+';margin-bottom:.55rem;line-height:1.5">Q'+(i+1)+': '+q.q+'</div>';
     for(var j=0;j<q.opts.length;j++){
       var letter=q.opts[j].charAt(0);
       var cls='quiz-option';
-      if(answered){cls+=(letter===q.correct?' qc':' qw');} // show right/wrong after answer
-      // only show correct highlight after answered
-      if(answered&&letter===q.correct)cls='quiz-option qc';
-      else if(answered&&answered!==letter)cls='quiz-option';
-      if(answered)cls+=' disabled-look';
-      html+='<button class="'+cls+'" '+(answered?'disabled':'')+' onclick="answerIRQ('+i+',\''+letter+'\',\''+q.correct+'\',\''+c.id+'\','+c.xp+',\''+doneKey+'\')">'+q.opts[j]+'</button>';
+      var locked=(state==='correct');// only lock the buttons once that question is correct
+      if(state==='correct'&&letter===q.correct)cls='quiz-option qc';
+      else if(state==='wrong'&&letter===chosen)cls='quiz-option qw';
+      html+='<button class="'+cls+'" '+(locked?'disabled':'')+' onclick="answerIRQ('+i+',\''+letter+'\',\''+q.correct+'\',\''+c.id+'\','+c.xp+',\''+doneKey+'\')">'+q.opts[j]+'</button>';
     }
-    if(answered){html+='<div style="font-size:.7rem;color:'+(answered==='correct'?'var(--green)':'#ff8899')+';margin-top:.4rem;font-style:italic">'+(answered==='correct'?'Correct — ':'Wrong — ')+q.explain+'</div>';}
+    if(state==='correct'){html+='<div style="font-size:.7rem;color:var(--green);margin-top:.4rem;font-style:italic">Correct — '+q.explain+'</div>';}
+    else if(state==='wrong'){html+='<div style="font-size:.7rem;color:#ff8899;margin-top:.4rem;font-style:italic">Not quite — try again. '+q.explain+'</div>';}
     html+='</div>';
   }
-  html+='<div class="cfb ok" id="cfb-ok-'+c.id+'">All 3 questions correct! +'+c.xp+' XP</div>';
+  html+='<div class="cfb ok" id="cfb-ok-'+c.id+'">All questions correct! +'+c.xp+' XP</div>';
   return html;
 }
 
 function answerIRQ(idx,chosen,correct,cid,cxp,doneKey){
-  irQuizProgress['irq'+idx]=chosen;
-  // check all 3
+  var qid='irq'+idx;
+  if(irQuizProgress[qid]==='correct')return;// already solved, ignore
+  irQuizChoice[qid]=chosen;
+  irQuizProgress[qid]=(chosen===correct)?'correct':'wrong';
+  // check all questions correct
   var all=true;
   for(var i=0;i<IR_QUIZ.length;i++){
-    if(irQuizProgress['irq'+i]!==IR_QUIZ[i].correct){all=false;break;}
+    if(irQuizProgress['irq'+i]!=='correct'){all=false;break;}
   }
   if(all){
     if(!G[doneKey])G[doneKey]={};G[doneKey][cid]=true;
@@ -838,6 +994,12 @@ function checkCompletion(){
 
 // ── SCORE ──
 function showScore(){
+  // Legitimate completion — release the lock cleanly so the score screen
+  // (and exiting fullscreen afterward) doesn't trigger a false disqualification.
+  fsGracePeriod=true;
+  fsLockActive=false;
+  exitFullscreenLock();
+
   var isPh=G.faction==='phantom';
   var title=document.getElementById('ss-title');
   if(title){title.textContent=isPh?'PHANTOM BREACH COMPLETE':'SECTOR 7 DEFENDED';title.style.color=isPh?'var(--red)':'var(--blue)';}
@@ -869,8 +1031,8 @@ function showScore(){
   var timeEl=document.getElementById('completion-time');
   if(timeEl)timeEl.textContent='Completed in '+timeStr;
 
-  // ── FULL MARKS CHECK (75 XP max per side, zero wrong attempts ever) ──
-  var MAX_XP_PER_SIDE=75;
+  // ── FULL MARKS CHECK (per-faction true max, zero wrong attempts ever) ──
+  var MAX_XP_PER_SIDE=isPh?101:104;
   var totalWrongAttempts=0;
   for(var k in G._attempts){totalWrongAttempts+=G._attempts[k];}
   var isFullMarks=(G.xp===MAX_XP_PER_SIDE&&totalWrongAttempts===0);
