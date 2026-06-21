@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DECODE — Cyber Puzzle Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0d0d;--card:#141414;--card2:#1a1a1a;
+  --border:#2a2a2a;--border2:#3a3a3a;
+  --text:#f5f5f5;--muted:#666;--dim:#333;
+  --green:#00ff88;--gdim:rgba(0,255,136,0.1);--gb:rgba(0,255,136,0.3);
+  --yellow:#ffe066;--ydim:rgba(255,224,102,0.1);--yb:rgba(255,224,102,0.3);
+  --red:#ff4466;--rdim:rgba(255,68,102,0.1);--rb:rgba(255,68,102,0.3);
+  --blue:#4488ff;--bdim:rgba(68,136,255,0.1);
+  --mono:'Space Mono',monospace;
+  --display:'Syne',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;opacity:.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");pointer-events:none;z-index:9999}
+.screen{display:none}.screen.active{display:flex;flex-direction:column;min-height:100vh}
+
+/* ── INTRO ── */
+#intro{align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center;position:relative}
+#intro::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 60%,rgba(0,255,136,0.06) 0%,transparent 70%);pointer-events:none}
+.game-title{font-family:var(--display);font-size:clamp(4rem,12vw,8rem);font-weight:800;letter-spacing:-.02em;line-height:1;margin-bottom:.25rem;background:linear-gradient(135deg,var(--green),var(--yellow));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.game-sub{font-size:.78rem;letter-spacing:.25em;color:var(--muted);margin-bottom:2rem;text-transform:uppercase}
+.intro-desc{max-width:440px;font-size:.82rem;line-height:1.8;color:#aaa;margin-bottom:2rem}
+.intro-desc strong{color:var(--text)}
+.stat-row{display:flex;gap:2rem;justify-content:center;margin-bottom:2rem}
+.stat{text-align:center}
+.stat-num{font-family:var(--display);font-size:2rem;font-weight:800;color:var(--green)}
+.stat-label{font-size:.65rem;letter-spacing:.15em;color:var(--muted);text-transform:uppercase;margin-top:.2rem}
+.start-btn{background:var(--green);color:#0d0d0d;border:none;font-family:var(--display);font-size:1.1rem;font-weight:800;padding:1rem 2.5rem;border-radius:4px;cursor:pointer;letter-spacing:.05em;transition:all .15s;position:relative;overflow:hidden}
+.start-btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,0);transition:background .15s}
+.start-btn:hover::after{background:rgba(255,255,255,0.15)}
+.start-btn:active{transform:scale(.97)}
+.start-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* countdown ring */
+.countdown-wrap{position:relative;width:80px;height:80px;margin:0 auto 1rem}
+.countdown-svg{transform:rotate(-90deg)}
+.countdown-track{fill:none;stroke:var(--dim);stroke-width:5}
+.countdown-ring{fill:none;stroke:var(--green);stroke-width:5;stroke-linecap:round;stroke-dasharray:226;stroke-dashoffset:0;transition:stroke-dashoffset 1s linear,stroke .5s}
+.countdown-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:1.8rem;font-weight:800;color:var(--green)}
+
+/* ── REFERENCE CARD ── */
+.ref-toggle{background:transparent;border:1px solid var(--border2);color:var(--muted);font-family:var(--mono);font-size:.72rem;padding:.5rem 1.2rem;border-radius:4px;cursor:pointer;margin-bottom:.75rem;transition:all .15s;letter-spacing:.05em}
+.ref-toggle:hover{border-color:var(--gb);color:var(--green)}
+.ref-card{display:none;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:1.25rem 1.5rem;max-width:660px;width:100%;text-align:left;margin-bottom:1.25rem}
+.ref-card.open{display:block}
+.ref-title{font-family:var(--display);font-size:1.1rem;color:var(--yellow);margin-bottom:1rem;letter-spacing:.06em}
+.ref-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.ref-section{background:var(--card2);border-radius:7px;padding:.85rem 1rem}
+.ref-section-title{font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem}
+.ref-row{display:flex;justify-content:space-between;font-size:.72rem;padding:.22rem 0;border-bottom:1px solid var(--border)}
+.ref-row:last-child{border-bottom:none}
+.ref-key{color:var(--muted)}
+.ref-val{color:var(--yellow);font-weight:700}
+.ref-note{font-size:.68rem;color:var(--muted);margin-top:.5rem;line-height:1.5;font-style:italic}
+.ref-alphabet{font-size:.65rem;line-height:1.8;color:#888;letter-spacing:.04em;margin-top:.4rem;word-break:break-all}
+.ref-alphabet span{color:var(--green)}
+
+/* ── GAME ── */
+#game{flex-direction:column}
+.game-hdr{padding:.9rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:1rem;position:sticky;top:0;background:var(--bg);z-index:50}
+.game-hdr-title{font-family:var(--display);font-size:1.2rem;font-weight:800;color:var(--green)}
+.progress-wrap{flex:1;height:6px;background:var(--dim);border-radius:3px;overflow:hidden}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--green),var(--yellow));border-radius:3px;transition:width .4s}
+.score-display{font-size:.78rem;letter-spacing:.1em;color:var(--muted)}
+.score-display strong{color:var(--text);font-size:1rem}
+.hdr-ref-btn{font-size:.65rem;padding:.3rem .7rem;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--mono);white-space:nowrap;transition:all .15s}
+.hdr-ref-btn:hover{border-color:var(--yb);color:var(--yellow)}
+
+/* floating ref panel */
+.float-ref{display:none;position:fixed;top:60px;right:1rem;z-index:200;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:1.1rem 1.25rem;width:320px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.float-ref.open{display:block}
+.float-ref-close{position:absolute;top:.6rem;right:.8rem;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;font-family:var(--mono)}
+
+.game-body{flex:1;padding:1.5rem;max-width:680px;margin:0 auto;width:100%}
+
+/* puzzle card */
+.pcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;transition:border-color .2s}
+.pcard.done{border-color:var(--gb);background:rgba(0,255,136,0.03)}
+.pcard.shake{animation:shake .35s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+.pcard-top{display:flex;align-items:flex-start;gap:1rem;margin-bottom:1rem}
+.pcard-num{font-family:var(--display);font-size:2rem;font-weight:800;color:var(--dim);min-width:40px;line-height:1}
+.pcard-content{flex:1}
+.pcard-tag{font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;padding:3px 8px;border-radius:2px;display:inline-block;margin-bottom:.5rem}
+.tag-cipher{background:var(--ydim);color:var(--yellow);border:1px solid var(--yb)}
+.tag-logic{background:var(--bdim);color:var(--blue);border:1px solid rgba(68,136,255,.3)}
+.tag-security{background:var(--gdim);color:var(--green);border:1px solid var(--gb)}
+.tag-binary{background:rgba(180,100,255,.1);color:#cc88ff;border:1px solid rgba(180,100,255,.3)}
+.pcard-q{font-size:.88rem;line-height:1.7;color:#ddd;margin-bottom:.75rem}
+.pcard-prompt{background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:.65rem 1rem;font-size:.92rem;color:var(--yellow);letter-spacing:.08em;margin-bottom:.9rem;word-break:break-all}
+
+/* options */
+.options{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem}
+.opt{padding:.65rem .9rem;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:#ccc;font-family:var(--mono);font-size:.78rem;cursor:pointer;text-align:left;transition:all .15s;line-height:1.4}
+.opt:hover:not(:disabled){border-color:var(--border2);color:var(--text);background:#1f1f1f}
+.opt.correct{border-color:var(--green);background:var(--gdim);color:var(--green)}
+.opt.incorrect{border-color:var(--red);background:var(--rdim);color:var(--red)}
+.opt:disabled{cursor:not-allowed}
+
+/* text input */
+.ans-row{display:flex;gap:.6rem;margin-bottom:.75rem}
+.ans-input{flex:1;background:var(--card2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:.65rem .9rem;font-family:var(--mono);font-size:.88rem;transition:border-color .15s}
+.ans-input:focus{outline:none;border-color:var(--gb)}
+.ans-input.correct-input{border-color:var(--green);background:var(--gdim);color:var(--green)}
+.submit-btn{padding:.65rem 1.2rem;background:transparent;border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:.78rem;border-radius:6px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.submit-btn:hover{border-color:var(--gb);color:var(--green)}
+.retry-note{font-size:.68rem;color:var(--muted);margin-top:.3rem;display:none}
+
+/* feedback */
+.feedback{font-size:.75rem;line-height:1.6;padding:.55rem .8rem;border-radius:5px;display:none;margin-top:.3rem}
+.feedback.ok{background:var(--gdim);border:1px solid var(--gb);color:var(--green)}
+.feedback.bad{background:var(--rdim);border:1px solid var(--rb);color:var(--red)}
+.attempts-left{font-size:.68rem;color:var(--muted);margin-top:.3rem}
+
+/* done check */
+.done-check{display:none;align-items:center;gap:.5rem;font-size:.78rem;color:var(--green);margin-top:.4rem}
+.pcard.done .done-check{display:flex}
+.check-circle{width:18px;height:18px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#000;font-weight:bold;flex-shrink:0}
+
+/* section header */
+.section-hdr{display:flex;align-items:center;gap:.75rem;margin:1.5rem 0 .9rem;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.section-hdr::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* COMPLETION */
+#complete{align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center;flex-direction:column;gap:1rem}
+.complete-title{font-family:var(--display);font-size:clamp(3rem,8vw,5rem);font-weight:800;background:linear-gradient(135deg,var(--green),var(--yellow));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.complete-sub{font-size:.8rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.score-big{font-family:var(--display);font-size:5rem;font-weight:800;color:var(--green);line-height:1}
+.score-max{font-size:.8rem;color:var(--muted)}
+.xp-breakdown{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.25rem 1.5rem;max-width:360px;width:100%;text-align:left}
+.xp-row{display:flex;justify-content:space-between;font-size:.78rem;padding:.35rem 0;border-bottom:1px solid var(--border)}
+.xp-row:last-child{border-bottom:none;padding-top:.6rem;margin-top:.2rem;color:var(--green);font-size:.85rem}
+.play-again{background:transparent;border:1px solid var(--gb);color:var(--green);font-family:var(--mono);font-size:.82rem;padding:.75rem 2rem;border-radius:4px;cursor:pointer;margin-top:.5rem;transition:all .15s}
+.play-again:hover{background:var(--gdim)}
+
+@media(max-width:500px){
+  .options{grid-template-columns:1fr}
+  .game-title{font-size:3.5rem}
+  .ref-grid{grid-template-columns:1fr}
+  .float-ref{width:calc(100vw - 2rem);right:.5rem}
+}
+</style>
+</head>
+<body>
+
+<!-- INTRO -->
+<div id="intro" class="screen active">
+  <div class="game-title">DECODE</div>
+  <div class="game-sub">Cyber Puzzle Game — MHS x Mac Rob</div>
+  <div class="intro-desc">
+    18 puzzles. Ciphers, binary, security logic, and hacking concepts. <strong>No coding required</strong> — just pattern recognition and sharp thinking. A cipher reference card is available at any time during the game.
+  </div>
+  <div class="stat-row">
+    <div class="stat"><div class="stat-num">18</div><div class="stat-label">Puzzles</div></div>
+    <div class="stat"><div class="stat-num">~40</div><div class="stat-label">Minutes</div></div>
+    <div class="stat"><div class="stat-num">160</div><div class="stat-label">Max XP</div></div>
+  </div>
+
+  <!-- REFERENCE CARD (intro version) -->
+  <button class="ref-toggle" onclick="toggleIntroRef()">CIPHER REFERENCE CARD</button>
+  <div class="ref-card" id="intro-ref">
+    <div class="ref-title">QUICK REFERENCE — CIPHERS & ENCODING</div>
+    <div class="ref-grid">
+      <div class="ref-section">
+        <div class="ref-section-title">Caesar Cipher</div>
+        <div style="font-size:.72rem;color:#aaa;line-height:1.6">Shift every letter forward or backward by a fixed number. Shift 3 means A becomes D, B becomes E, Z wraps to C.<br><br>To <strong style="color:var(--yellow)">decode</strong>: shift <em>backward</em> by the same number.</div>
+        <div class="ref-alphabet" id="caesar-alpha"></div>
+        <div class="ref-note">Example: KHOOR (shift 3 back) = HELLO</div>
+      </div>
+      <div class="ref-section">
+        <div class="ref-section-title">ROT13</div>
+        <div style="font-size:.72rem;color:#aaa;line-height:1.6">A Caesar cipher with shift exactly 13. Because the alphabet has 26 letters, applying ROT13 twice returns the original. A=N, B=O, C=P...</div>
+        <div class="ref-row" style="margin-top:.5rem"><span class="ref-key">A-M</span><span class="ref-val">N-Z</span></div>
+        <div class="ref-row"><span class="ref-key">N-Z</span><span class="ref-val">A-M</span></div>
+        <div class="ref-note">Example: URYYB (ROT13) = HELLO</div>
+      </div>
+      <div class="ref-section">
+        <div class="ref-section-title">Binary (ASCII)</div>
+        <div style="font-size:.72rem;color:#aaa;line-height:1.6">Each 8-bit group is a number. Convert to decimal, then look up the ASCII character.</div>
+        <div id="binary-table"></div>
+        <div class="ref-note">01001000 = 72 = H &nbsp; 01001001 = 73 = I</div>
+      </div>
+      <div class="ref-section">
+        <div class="ref-section-title">Hex (Base 16)</div>
+        <div style="font-size:.72rem;color:#aaa;line-height:1.6">Uses digits 0–9 then A–F. Two hex digits = one byte = one ASCII character.</div>
+        <div id="hex-table"></div>
+        <div class="ref-note">48 = H &nbsp; 65 = e &nbsp; 6C = l &nbsp; 6F = o</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="countdown-wrap" id="countdown-wrap" style="display:none">
+    <svg class="countdown-svg" width="80" height="80" viewBox="0 0 80 80">
+      <circle class="countdown-track" cx="40" cy="40" r="36"/>
+      <circle class="countdown-ring" id="countdown-ring" cx="40" cy="40" r="36"/>
+    </svg>
+    <div class="countdown-num" id="countdown-num">20</div>
+  </div>
+
+  <button class="start-btn" id="start-btn" onclick="beginCountdown()">START MISSION</button>
+</div>
+
+<!-- GAME -->
+<div id="game" class="screen">
+  <div class="game-hdr">
+    <div class="game-hdr-title">DECODE</div>
+    <div class="progress-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+    <button class="hdr-ref-btn" onclick="toggleFloatRef()">CIPHER REF</button>
+    <div class="score-display">XP: <strong id="score-display">0</strong></div>
+  </div>
+
+  <!-- Floating reference panel -->
+  <div class="float-ref" id="float-ref">
+    <button class="float-ref-close" onclick="toggleFloatRef()">x</button>
+    <div style="font-family:var(--display);font-size:1rem;color:var(--yellow);margin-bottom:.9rem;letter-spacing:.06em">CIPHER REFERENCE</div>
+    <div style="font-size:.72rem;color:#aaa;line-height:1.6;margin-bottom:.75rem">
+      <strong style="color:var(--yellow)">Caesar cipher:</strong> shift each letter back by the number given.<br>
+      Shift 3: K=H, L=I, M=J, N=K... Z wraps to W.
+    </div>
+    <div id="float-caesar-alpha" style="font-size:.62rem;line-height:1.9;color:#888;margin-bottom:.75rem;word-break:break-all"></div>
+    <div style="font-size:.72rem;color:#aaa;line-height:1.6;margin-bottom:.75rem">
+      <strong style="color:var(--yellow)">ROT13:</strong> A=N, B=O, C=P, D=Q, E=R, F=S, G=T, H=U, I=V, J=W, K=X, L=Y, M=Z (and reverse).
+    </div>
+    <div style="font-size:.72rem;color:#aaa;line-height:1.6;margin-bottom:.75rem">
+      <strong style="color:var(--yellow)">Binary:</strong> convert 8-bit groups to decimal, then use ASCII.<br>
+      A=65, B=66... H=72, I=73... Z=90<br>
+      a=97, b=98... z=122
+    </div>
+    <div id="float-binary-table"></div>
+    <div style="font-size:.72rem;color:#aaa;line-height:1.6;margin-top:.5rem">
+      <strong style="color:var(--yellow)">Hex:</strong> 0–9 then A–F. Two digits = one ASCII character.<br>
+      48=H, 65=e, 6C=l, 6F=o, 61=a, 63=c, 6B=k
+    </div>
+  </div>
+
+  <div class="game-body" id="game-body"></div>
+</div>
+
+<!-- COMPLETE -->
+<div id="complete" class="screen">
+  <div class="complete-sub">Mission Complete</div>
+  <div class="complete-title">DECODED</div>
+  <div class="score-big" id="final-score">0</div>
+  <div class="score-max">out of 160 XP</div>
+  <div id="fullmarks-badge" style="display:none;background:linear-gradient(135deg,var(--yellow),var(--green));color:#0d0d0d;font-weight:800;font-size:.85rem;padding:.5rem 1.2rem;border-radius:6px;margin:.6rem 0;letter-spacing:.03em"></div>
+  <div id="completion-time" style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">Completed in 0m 00s</div>
+  <div class="xp-breakdown" id="xp-breakdown"></div>
+  <button class="play-again" onclick="location.reload()">PLAY AGAIN</button>
+</div>
+
+<script>
+var score=0;
+var solved={};
+var attempts={};// track wrong attempts per puzzle
+var MAX_ATTEMPTS=3;// after 3 wrong, reveal answer
+
+// Build Caesar alphabet display
+function buildCaesarAlpha(containerId){
+  var el=document.getElementById(containerId);if(!el)return;
+  var plain='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  var shift3='DEFGHIJKLMNOPQRSTUVWXYZABC';
+  var html='<div style="margin-top:.4rem">';
+  html+='<div style="font-size:.6rem;color:var(--muted);margin-bottom:.15rem">Plain: </div>';
+  html+='<div style="font-size:.62rem;color:#888;letter-spacing:.04em">'+plain+'</div>';
+  html+='<div style="font-size:.6rem;color:var(--muted);margin-top:.25rem;margin-bottom:.15rem">Shift 3: </div>';
+  html+='<div style="font-size:.62rem;color:var(--yellow);letter-spacing:.04em">'+shift3+'</div>';
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// Build ASCII binary table (partial)
+function buildBinaryTable(containerId){
+  var el=document.getElementById(containerId);if(!el)return;
+  var chars=[['A','65','01000001'],['H','72','01001000'],['I','73','01001001'],['S','83','01010011'],['E','69','01000101']];
+  var html='<div style="margin-top:.4rem">';
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:2px;font-size:.6rem">';
+  html+='<div style="color:var(--muted)">Char</div><div style="color:var(--muted)">Dec</div><div style="color:var(--muted)">Binary</div>';
+  chars.forEach(function(r){
+    html+='<div style="color:var(--yellow)">'+r[0]+'</div><div style="color:#aaa">'+r[1]+'</div><div style="color:#888">'+r[2]+'</div>';
+  });
+  html+='</div></div>';
+  el.innerHTML=html;
+}
+
+// Build hex table
+function buildHexTable(containerId){
+  var el=document.getElementById(containerId);if(!el)return;
+  var chars=[['H','48'],['A','41'],['C','43'],['K','4B'],['S','53'],['E','45']];
+  var html='<div style="margin-top:.4rem;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;font-size:.62rem">';
+  chars.forEach(function(r){
+    html+='<div><span style="color:var(--yellow)">'+r[0]+'</span>=<span style="color:#aaa">'+r[1]+'</span></div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// Init reference content
+buildCaesarAlpha('caesar-alpha');
+buildBinaryTable('binary-table');
+buildHexTable('hex-table');
+buildCaesarAlpha('float-caesar-alpha');
+buildBinaryTable('float-binary-table');
+
+function toggleIntroRef(){
+  var r=document.getElementById('intro-ref');
+  r.classList.toggle('open');
+}
+function toggleFloatRef(){
+  var r=document.getElementById('float-ref');
+  r.classList.toggle('open');
+}
+
+// ── COUNTDOWN ──
+var countdownVal=5;
+var countdownInt=null;
+var CIRCUMFERENCE=226;// 2 * pi * 36
+var gameStartTime=null;
+
+function beginCountdown(){
+  var btn=document.getElementById('start-btn');
+  var wrap=document.getElementById('countdown-wrap');
+  btn.disabled=true;
+  btn.textContent='GET READY...';
+  wrap.style.display='block';
+  countdownVal=5;
+  updateCountdownDisplay();
+  countdownInt=setInterval(function(){
+    countdownVal--;
+    updateCountdownDisplay();
+    if(countdownVal<=0){
+      clearInterval(countdownInt);
+      startGame();
+    }
+  },1000);
+}
+
+function updateCountdownDisplay(){
+  var numEl=document.getElementById('countdown-num');
+  var ring=document.getElementById('countdown-ring');
+  if(numEl)numEl.textContent=countdownVal;
+  if(ring){
+    var offset=CIRCUMFERENCE*(1-(countdownVal/5));
+    ring.style.strokeDashoffset=offset;
+    if(countdownVal<=1)ring.style.stroke='var(--red)';
+    else if(countdownVal<=3)ring.style.stroke='var(--yellow)';
+    else ring.style.stroke='var(--green)';
+  }
+}
+
+// ── PUZZLES ──
+var PUZZLES=[
+  // CIPHERS
+  {id:'c1',tag:'cipher',tagClass:'tag-cipher',title:'Caesar Cipher',
+    q:'PHANTOM intercepted this transmission. Decode it using a Caesar cipher with shift 3. Use the Cipher Reference Card if you need help.',
+    prompt:'KHOOR ZRUOG',
+    type:'text',answer:'hello world',
+    hint:'Shift each letter BACK by 3. K goes back to H, H goes back to E... use the alphabet in the reference card.',
+    explain:'Caesar cipher: shift every letter by a fixed number. Shift 3 means K(10) becomes H(7). Used by Julius Caesar himself. Trivially breakable today — only 25 possible keys.',xp:8},
+  {id:'c2',tag:'cipher',tagClass:'tag-cipher',title:'ROT13',
+    q:'What does this encoded message say? (ROT13 — each letter shifted by exactly 13)',
+    prompt:'FRPHEVGL VF RIVQRAPR',
+    type:'text',answer:'security is evidence',
+    hint:'ROT13 maps A to N, B to O, C to P... and N to A, O to B. The reference card shows the full mapping.',
+    explain:'ROT13 is its own inverse — applying it twice gets back the original. Used on forums to hide spoilers. Not real encryption.',xp:8},
+  {id:'c3',tag:'cipher',tagClass:'tag-cipher',title:'Vigenere Cipher',
+    q:'The Vigenere cipher uses a keyword to apply different shifts to each letter. With key "ACE": A=shift 0, C=shift 2, E=shift 4. What does encoding "HI" with key "AC" give?',
+    prompt:'H + A(shift 0) = ?     I + C(shift 2) = ?',
+    type:'mcq',answer:'b',
+    options:['a) HK','b) HK... wait: H+0=H, I+2=K, so HK','c) IJ','d) JL'],
+    hint:'H shifted by 0 = H. I shifted by 2 = K (I=9th letter, +2 = 11th = K).',
+    explain:'Vigenere applies a different Caesar shift per letter based on the key word. Much harder to crack than Caesar because the shift changes every letter.',xp:10},
+  // BINARY
+  {id:'b1',tag:'binary',tagClass:'tag-binary',title:'Binary to Text',
+    q:'AEGIS intercepted a binary transmission. Each 8-bit group is one character. What does it say? Use the reference card if needed.',
+    prompt:'01001000 01001001',
+    type:'text',answer:'hi',
+    hint:'01001000 = 72 in decimal = H. 01001001 = 73 = I. Check the binary table in the reference.',
+    explain:'Computers store everything as binary. ASCII maps numbers to characters. H=72=01001000. Every letter you type is secretly a number.',xp:8},
+  {id:'b2',tag:'binary',tagClass:'tag-binary',title:'Hex Decoding',
+    q:'What text does this hexadecimal represent? Each pair of hex digits = one ASCII character.',
+    prompt:'48 61 63 6B',
+    type:'text',answer:'hack',
+    hint:'48 in hex = 72 in decimal = H. 61=97=a. 63=99=c. 6B=107=k. Use the hex table in the reference.',
+    explain:'Hexadecimal uses base 16 (0-9 then A-F). Programmers use it because two hex digits map neatly to 8 binary bits.',xp:8},
+  // SECURITY
+  {id:'s1',tag:'security',tagClass:'tag-security',title:'Spot the Phishing URL',
+    q:'PHANTOM is running a phishing campaign against Sector 7. Which URL is the malicious fake site?',
+    prompt:'',
+    type:'mcq',answer:'b',
+    options:['a) sector7.gov.au/login','b) sector7.gov.au.secure-login.xyz/verify','c) login.sector7.gov.au/portal','d) secure.auth.sector7.gov.au'],
+    hint:'Read the URL right-to-left from the first single slash. The real domain is what comes just before that slash.',
+    explain:'In option B, the real domain is secure-login.xyz — the attacker owns this. Everything before it (sector7.gov.au.) is just a subdomain prefix. Always read the domain backwards from the slash.',xp:10},
+  {id:'s2',tag:'security',tagClass:'tag-security',title:'Password Strength',
+    q:'Rank these passwords weakest to strongest. Which ordering is correct?',
+    prompt:'A: password123     B: x     C: correct-horse-battery-staple     D: P@ssw0rd',
+    type:'mcq',answer:'c',
+    options:['a) A, B, D, C','b) B, D, A, C','c) B, A, D, C','d) A, D, B, C'],
+    hint:'Length always beats complexity. One character is always weakest. A 28-character passphrase beats an 8-char complex password.',
+    explain:'B(1 char) < A(11 chars, dictionary) < D(8 chars, complex but short) < C(28 chars, long wins). Length is king in password security.',xp:10},
+  {id:'s3',tag:'security',tagClass:'tag-security',title:'Identify the Attack',
+    q:'PHANTOM\'s script sends 10,000 login attempts per minute to the Sector 7 portal, trying every word in a dictionary. What type of attack is this?',
+    prompt:'',
+    type:'mcq',answer:'a',
+    options:['a) Dictionary / brute force attack','b) SQL injection attack','c) DDoS attack','d) Man-in-the-middle attack'],
+    hint:'This attack is trying to guess a password by systematically testing known words.',
+    explain:'Dictionary attacks try passwords from a precompiled list. Brute force tries all combinations. Defended by rate limiting, account lockouts, and strong passwords. This is why "password" is the first thing attackers try.',xp:10},
+  {id:'s4',tag:'security',tagClass:'tag-security',title:'SQL Injection',
+    q:'A login form runs: SELECT * FROM users WHERE user=INPUT AND pass=INPUT\n\nWhich input in the username field completely bypasses the password check?',
+    prompt:'',
+    type:'mcq',answer:'d',
+    options:["a) admin","b) ' OR 1=1","c) &lt;script&gt;alert('xss')&lt;/script&gt;","d) admin'--"],
+    hint:"The -- symbol is a SQL comment. Anything after it is ignored by the database. So the password check disappears.",
+    explain:"admin'-- makes the query: WHERE user='admin'-- AND pass='...' The -- comments out the password check entirely. This is SQL injection — the most common web vulnerability for a decade.",xp:10},
+  // LOGIC
+  {id:'l1',tag:'logic',tagClass:'tag-logic',title:'How Hashing Works',
+    q:'A website stores your password as an MD5 hash. You hash "secret123" and get: 5a107bfc... You log in tomorrow and type "secret123" again. What does the site compare?',
+    prompt:'',
+    type:'mcq',answer:'b',
+    options:['a) It decrypts the stored hash to check','b) It hashes what you typed and compares the two hashes','c) It stores your password in plaintext behind the hash','d) Each login generates a new hash, so it always matches'],
+    hint:'Hash functions are one-way. You cannot reverse them. So the site must hash your input and compare.',
+    explain:'The site stores your password hash, never your password. At login it hashes what you typed and compares. If they match, you are in. If the database leaks, attackers only get hashes — but can crack weak ones.',xp:8},
+  {id:'l2',tag:'logic',tagClass:'tag-logic',title:'Encryption vs Hashing',
+    q:'Which statement is TRUE?',
+    prompt:'',
+    type:'mcq',answer:'c',
+    options:['a) Hashing and encryption are the same thing','b) You can reverse a hash to get the original data','c) Encryption is reversible with a key; hashing is one-way','d) HTTPS uses hashing to protect data in transit'],
+    hint:'Think about what each is designed for: encryption = send secrets, hashing = verify without revealing.',
+    explain:'Encryption scrambles data and can be unscrambled with the right key. Hashing is a one-way transformation you cannot reverse. HTTPS uses encryption (TLS). Passwords use hashing.',xp:10},
+
+  // EXTRA CHALLENGES — extend activity length without changing mechanics
+  {id:'c4',tag:'cipher',tagClass:'tag-cipher',title:'Caesar Cipher — Shift 5',
+    q:'PHANTOM changed the shift. Decode this message using a Caesar cipher with shift 5.',
+    prompt:'RJJY FY LFYJ',
+    type:'text',answer:'meet at gate',
+    hint:'Shift each letter BACK by 5. R goes back to M, J goes back to E, Y goes back to T.',
+    explain:'The Caesar method stays the same, but changing the shift changes every letter. A tiny change to the key creates a different-looking message.',xp:8},
+  {id:'c5',tag:'cipher',tagClass:'tag-cipher',title:'Atbash Cipher',
+    q:'Atbash flips the alphabet: A becomes Z, B becomes Y, C becomes X, and so on. Decode the word below.',
+    prompt:'HVXIVG',
+    type:'text',answer:'secret',
+    hint:'Pair letters from opposite ends of the alphabet. H becomes S, V becomes E, X becomes C.',
+    explain:'Atbash is a simple substitution cipher. Every letter maps to its opposite letter in the alphabet. It is easy to break once you notice the pattern.',xp:10},
+  {id:'b3',tag:'binary',tagClass:'tag-binary',title:'Binary to Text — Two Letters',
+    q:'Decode this binary message. Each 8-bit group is one ASCII character.',
+    prompt:'01001111 01001011',
+    type:'text',answer:'ok',
+    hint:'01001111 = 79 = O. 01001011 = 75 = K.',
+    explain:'ASCII turns numbers into characters. Binary is just another way to write those numbers. 79 maps to O and 75 maps to K.',xp:8},
+  {id:'b4',tag:'binary',tagClass:'tag-binary',title:'Hex Decoding — Alert Word',
+    q:'What text does this hexadecimal represent?',
+    prompt:'41 4C 45 52 54',
+    type:'text',answer:'alert',
+    hint:'41=A, 4C=L, 45=E, 52=R, 54=T.',
+    explain:'Hex is compact. Security tools often show raw bytes in hex because it is easier to read than long binary strings.',xp:8},
+  {id:'s5',tag:'security',tagClass:'tag-security',title:'Social Engineering',
+    q:'An attacker calls the help desk pretending to be a teacher and asks for a password reset. What is the biggest risk?',
+    prompt:'',
+    type:'mcq',answer:'b',
+    options:['a) The phone line is encrypted','b) The attacker is manipulating a person, not a computer','c) The password contains numbers','d) The website uses HTTPS'],
+    hint:'This attack targets trust, urgency, and human behaviour rather than software bugs.',
+    explain:'Social engineering attacks people instead of systems. Strong technical security can still fail if someone is tricked into handing over access.',xp:8},
+  {id:'s6',tag:'security',tagClass:'tag-security',title:'Two-Factor Authentication',
+    q:'Why does two-factor authentication make an account safer?',
+    prompt:'',
+    type:'mcq',answer:'c',
+    options:['a) It makes the password impossible to guess','b) It hides the username from attackers','c) It requires something beyond the password','d) It removes the need for updates'],
+    hint:'Think about what happens if the password is stolen. What extra barrier still remains?',
+    explain:'Two-factor authentication adds another proof of identity, such as a code, app approval, or security key. A stolen password alone is no longer enough.',xp:10},
+  {id:'l3',tag:'logic',tagClass:'tag-logic',title:'Least Privilege',
+    q:'A student helper needs to upload event posters, but not delete files or change user accounts. Which permission model is safest?',
+    prompt:'',
+    type:'mcq',answer:'a',
+    options:['a) Give only upload access to the event folder','b) Give admin access for one day','c) Share the teacher account password','d) Turn off permissions until the event ends'],
+    hint:'Give the smallest amount of access needed to do the job.',
+    explain:'Least privilege means users get only the access they need, for only as long as they need it. It limits damage if an account is misused or compromised.',xp:8},
+];
+
+function startGame(){
+  gameStartTime=Date.now();
+  showScreen('game');
+  renderPuzzles();
+}
+
+function renderPuzzles(){
+  var body=document.getElementById('game-body');
+  var html='';
+  var tags={cipher:'Ciphers & Codes',binary:'Binary & Encoding',security:'Security & Hacking',logic:'Logic & Concepts'};
+  var lastTag='';
+  for(var i=0;i<PUZZLES.length;i++){
+    var p=PUZZLES[i];
+    if(p.tag!==lastTag){html+='<div class="section-hdr">'+tags[p.tag]+'</div>';lastTag=p.tag;}
+    html+=renderPuzzleCard(p,i);
+  }
+  body.innerHTML=html;
+}
+
+function renderPuzzleCard(p,i){
+  var num=(i+1<10?'0'+(i+1):''+(i+1));
+  var att=attempts[p.id]||0;
+  var html='<div class="pcard'+(solved[p.id]?' done':'')+'" id="pc-'+p.id+'">';
+  html+='<div class="pcard-top">';
+  html+='<div class="pcard-num">'+num+'</div>';
+  html+='<div class="pcard-content">';
+  html+='<span class="pcard-tag '+p.tagClass+'">'+p.tag+'</span>';
+  html+='<div style="font-family:\'Syne\',sans-serif;font-size:1rem;font-weight:700;margin-bottom:.4rem">'+p.title+'</div>';
+  html+='<div class="pcard-q">'+p.q.replace(/\n/g,'<br>')+'</div>';
+  if(p.prompt)html+='<div class="pcard-prompt">'+p.prompt+'</div>';
+  html+='</div></div>';
+
+  if(solved[p.id]){
+    // Already solved — show locked correct state
+    if(p.type==='mcq'){
+      html+='<div class="options">';
+      for(var j=0;j<p.options.length;j++){
+        var l=String.fromCharCode(97+j);
+        var cls=l===p.answer?'opt correct':'opt';
+        html+='<button class="'+cls+'" disabled>'+p.options[j]+'</button>';
+      }
+      html+='</div>';
+    } else {
+      html+='<div class="ans-row"><input class="ans-input correct-input" value="'+p.answer+'" disabled></div>';
+    }
+    html+='<div class="feedback ok" style="display:block">+'+p.xp+' XP — '+p.explain+'</div>';
+    html+='<div class="done-check"><div class="check-circle">OK</div><span>Solved — +'+p.xp+' XP</span></div>';
+  } else {
+    if(p.type==='mcq'){
+      html+='<div class="options" id="opts-'+p.id+'">';
+      for(var j=0;j<p.options.length;j++){
+        var l=String.fromCharCode(97+j);
+        html+='<button class="opt" id="opt-'+p.id+'-'+l+'" onclick="selectOpt(\''+p.id+'\',\''+l+'\',\''+p.answer+'\','+p.xp+')">'+p.options[j]+'</button>';
+      }
+      html+='</div>';
+    } else {
+      html+='<div class="ans-row">';
+      html+='<input class="ans-input" id="ai-'+p.id+'" type="text" placeholder="Your answer..." onkeydown="if(event.key===\'Enter\')submitText(\''+p.id+'\',\''+p.answer+'\','+p.xp+')">';
+      html+='<button class="submit-btn" id="sb-'+p.id+'" onclick="submitText(\''+p.id+'\',\''+p.answer+'\','+p.xp+')">SUBMIT</button>';
+      html+='</div>';
+    }
+    if(att>0){
+      html+='<div class="attempts-left" id="att-'+p.id+'">Attempts used: '+att+'/'+MAX_ATTEMPTS+(att>=MAX_ATTEMPTS?' — Answer revealed below':' — try again')+'</div>';
+    }
+    html+='<div class="feedback ok" id="fb-ok-'+p.id+'">+'+p.xp+' XP — '+p.explain+'</div>';
+    html+='<div class="feedback bad" id="fb-bad-'+p.id+'">Not quite. Hint: '+p.hint+'</div>';
+    if(att>=MAX_ATTEMPTS){
+      html+='<div class="feedback" style="display:block;background:rgba(255,224,102,0.08);border:1px solid rgba(255,224,102,0.3);color:var(--yellow)">Answer: <strong>'+p.answer+'</strong></div>';
+    }
+    html+='<div class="done-check"><div class="check-circle">OK</div><span>Solved — +'+p.xp+' XP</span></div>';
+  }
+  html+='</div>';
+  return html;
+}
+
+// MCQ: lock options, but allow retry if wrong (re-enable after delay)
+function selectOpt(pid,letter,correct,xp){
+  if(solved[pid])return;
+  var ok=letter===correct;
+  var allOpts=document.querySelectorAll('[id^="opt-'+pid+'-"]');
+
+  if(ok){
+    // correct
+    for(var i=0;i<allOpts.length;i++){
+      allOpts[i].disabled=true;
+      if(allOpts[i].id.slice(-1)===correct)allOpts[i].classList.add('correct');
+    }
+    resolvePuzzle(pid,true,xp);
+  } else {
+    // wrong — flash red then re-enable
+    if(!attempts[pid])attempts[pid]=0;
+    attempts[pid]++;
+    var clicked=document.getElementById('opt-'+pid+'-'+letter);
+    if(clicked){clicked.classList.add('incorrect');clicked.disabled=true;}
+    var attEl=document.getElementById('att-'+pid);
+    if(!attEl){
+      // inject attempts counter
+      var card=document.getElementById('pc-'+pid);
+      var div=document.createElement('div');
+      div.className='attempts-left';div.id='att-'+pid;card.appendChild(div);
+      attEl=div;
+    }
+    attEl.textContent='Attempts used: '+attempts[pid]+'/'+MAX_ATTEMPTS+(attempts[pid]>=MAX_ATTEMPTS?' — Answer revealed below':' — try again');
+    var fbBad=document.getElementById('fb-bad-'+pid);
+    if(fbBad){fbBad.style.display='block';setTimeout(function(){fbBad.style.display='none';},3000);}
+    var card=document.getElementById('pc-'+pid);
+    if(card){card.classList.add('shake');setTimeout(function(){card.classList.remove('shake');},380);}
+
+    if(attempts[pid]>=MAX_ATTEMPTS){
+      // reveal answer
+      for(var i=0;i<allOpts.length;i++)allOpts[i].disabled=true;
+      var ans=document.createElement('div');
+      ans.className='feedback';ans.style.display='block';
+      ans.style.background='rgba(255,224,102,0.08)';ans.style.border='1px solid rgba(255,224,102,0.3)';ans.style.color='var(--yellow)';
+      // find correct text
+      var letter2=correct;var idx=letter2.charCodeAt(0)-97;
+      var p2=null;for(var i=0;i<PUZZLES.length;i++){if(PUZZLES[i].id===pid){p2=PUZZLES[i];break;}}
+      ans.innerHTML='Answer: <strong>'+correct+') '+(p2?p2.options[idx]:'')+'</strong>';
+      var optsDiv=document.getElementById('opts-'+pid);if(optsDiv)optsDiv.after(ans);
+    } else {
+      // re-enable unclicked options after short delay
+      setTimeout(function(){
+        var opts2=document.querySelectorAll('[id^="opt-'+pid+'-"]');
+        for(var i=0;i<opts2.length;i++){
+          if(!opts2[i].classList.contains('incorrect'))opts2[i].disabled=false;
+        }
+      },1200);
+    }
+  }
+}
+
+// Text input: allow retry
+function submitText(pid,correct,xp){
+  if(solved[pid])return;
+  var el=document.getElementById('ai-'+pid);if(!el)return;
+  var val=el.value.trim().toLowerCase().replace(/\s+/g,' ');
+  var cmp=correct.toLowerCase().replace(/\s+/g,' ');
+  var ok=val===cmp||val.replace(/\s/g,'')===cmp.replace(/\s/g,'');
+
+  if(ok){
+    el.classList.add('correct-input');el.disabled=true;
+    var sb=document.getElementById('sb-'+pid);if(sb)sb.disabled=true;
+    resolvePuzzle(pid,true,xp);
+  } else {
+    if(!attempts[pid])attempts[pid]=0;
+    attempts[pid]++;
+    // flash red
+    el.style.borderColor='var(--red)';
+    setTimeout(function(){el.style.borderColor='';},700);
+    var card=document.getElementById('pc-'+pid);
+    if(card){card.classList.add('shake');setTimeout(function(){card.classList.remove('shake');},380);}
+    var fbBad=document.getElementById('fb-bad-'+pid);
+    if(fbBad){fbBad.style.display='block';setTimeout(function(){fbBad.style.display='none';},3000);}
+    var attEl=document.getElementById('att-'+pid);
+    if(!attEl){
+      var div=document.createElement('div');div.className='attempts-left';div.id='att-'+pid;
+      el.parentElement.after(div);attEl=div;
+    }
+    attEl.textContent='Attempts used: '+attempts[pid]+'/'+MAX_ATTEMPTS+(attempts[pid]>=MAX_ATTEMPTS?' — Answer revealed below':' — try again');
+    if(attempts[pid]>=MAX_ATTEMPTS){
+      el.disabled=true;var sb=document.getElementById('sb-'+pid);if(sb)sb.disabled=true;
+      var ans=document.createElement('div');
+      ans.className='feedback';ans.style.display='block';
+      ans.style.background='rgba(255,224,102,0.08)';ans.style.border='1px solid rgba(255,224,102,0.3)';ans.style.color='var(--yellow)';
+      ans.innerHTML='Answer: <strong>'+correct+'</strong>';
+      var row=document.getElementById('ai-'+pid);if(row)row.parentElement.after(ans);
+    }
+  }
+}
+
+function resolvePuzzle(pid,ok,xp){
+  if(!ok)return;
+  solved[pid]=xp;score+=xp;
+  var fbOk=document.getElementById('fb-ok-'+pid);if(fbOk)fbOk.style.display='block';
+  var card=document.getElementById('pc-'+pid);if(card)card.classList.add('done');
+  updateProgress();
+  document.getElementById('score-display').textContent=score;
+  if(Object.keys(solved).length===PUZZLES.length)setTimeout(showComplete,800);
+}
+
+function updateProgress(){
+  var done=Object.keys(solved).length;
+  var bar=document.getElementById('progress-bar');
+  if(bar)bar.style.width=((done/PUZZLES.length)*100)+'%';
+}
+
+function showComplete(){
+  document.getElementById('final-score').textContent=score;
+  var tags={cipher:'Ciphers & Codes',binary:'Binary & Encoding',security:'Security & Hacking',logic:'Logic & Concepts'};
+  var groups={cipher:0,binary:0,security:0,logic:0};
+  var maxes={cipher:0,binary:0,security:0,logic:0};
+  for(var i=0;i<PUZZLES.length;i++){
+    maxes[PUZZLES[i].tag]+=PUZZLES[i].xp;
+    if(solved[PUZZLES[i].id])groups[PUZZLES[i].tag]+=solved[PUZZLES[i].id];
+  }
+  var html='';
+  for(var tag in tags){
+    html+='<div class="xp-row"><span>'+tags[tag]+'</span><span>'+groups[tag]+' / '+maxes[tag]+'</span></div>';
+  }
+  html+='<div class="xp-row"><strong>Total</strong><strong>'+score+' / 160 XP</strong></div>';
+  document.getElementById('xp-breakdown').innerHTML=html;
+
+  // ── COMPLETION TIME ──
+  var elapsedMs=gameStartTime?(Date.now()-gameStartTime):0;
+  var elapsedSec=Math.floor(elapsedMs/1000);
+  var mins=Math.floor(elapsedSec/60);
+  var secs=elapsedSec%60;
+  var timeStr=mins+'m '+(secs<10?'0':'')+secs+'s';
+  var timeEl=document.getElementById('completion-time');
+  if(timeEl)timeEl.textContent='Completed in '+timeStr;
+
+  // ── FULL MARKS CHECK (zero wrong attempts across all puzzles) ──
+  var totalWrongAttempts=0;
+  for(var pid in attempts){totalWrongAttempts+=attempts[pid];}
+  var isFullMarks=(score===160&&totalWrongAttempts===0);
+  var badgeEl=document.getElementById('fullmarks-badge');
+  if(badgeEl){
+    if(isFullMarks){
+      badgeEl.style.display='block';
+      badgeEl.innerHTML='💯 FULL MARKS — zero wrong attempts!';
+    } else {
+      badgeEl.style.display='none';
+    }
+  }
+
+  // Store result so it can be read off-screen by a host, or exported
+  window.DECODE_RESULT={
+    score:score,
+    maxScore:160,
+    fullMarks:isFullMarks,
+    completionTimeMs:elapsedMs,
+    completionTimeFormatted:timeStr,
+    wrongAttempts:totalWrongAttempts,
+    timestamp:new Date().toISOString()
+  };
+
+  showScreen('complete');
+}
+
+function showScreen(id){
+  var screens=document.querySelectorAll('.screen');
+  for(var i=0;i<screens.length;i++)screens[i].classList.remove('active');
+  document.getElementById(id).classList.add('active');
+}
+</script>
+</body>
+</html>
