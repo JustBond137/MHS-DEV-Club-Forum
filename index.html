@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MHS x Mac Rob — Cyber Forum</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080b10;--s1:#0d1117;
+  --bdr:rgba(255,255,255,0.08);--bdr2:rgba(255,255,255,0.16);
+  --text:#e8f0fe;--muted:#4a6080;
+  --green:#00e676;--red:#ff3d5a;--blue:#448aff;--amber:#ffab00;
+  --mono:'Share Tech Mono',monospace;--display:'Bebas Neue',cursive;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,230,118,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,230,118,0.025) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
+.wrap{max-width:560px;width:100%;text-align:center;position:relative;z-index:2}
+.title{font-family:var(--display);font-size:clamp(2.5rem,8vw,4rem);letter-spacing:.1em;background:linear-gradient(135deg,var(--green),var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:.3rem}
+.sub{font-size:.7rem;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-bottom:2.5rem}
+.card{background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:1.5rem;margin-bottom:1rem;text-align:left;text-decoration:none;display:block;transition:all .2s;position:relative;overflow:hidden}
+.card:hover{border-color:var(--bdr2);transform:translateY(-3px)}
+.card-name{font-family:var(--display);font-size:1.6rem;letter-spacing:.08em;margin-bottom:.3rem}
+.card.c1 .card-name{color:var(--green)}
+.card.c2 .card-name{color:var(--red)}
+.card-desc{font-size:.78rem;color:#7a9ab8;line-height:1.6}
+.card-meta{font-size:.65rem;color:var(--muted);margin-top:.6rem;letter-spacing:.05em}
+.arrow{position:absolute;right:1.5rem;top:50%;transform:translateY(-50%);font-size:1.5rem;color:var(--muted);transition:transform .2s}
+.card:hover .arrow{transform:translateY(-50%) translateX(4px);color:var(--text)}
+.footer{font-size:.65rem;color:var(--muted);margin-top:2rem;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title">SECTOR 7</div>
+  <div class="sub">MHS x Mac Rob Developer Forum — Cybersecurity Challenge</div>
+
+  <a href="decode.html" class="card c1">
+    <div class="card-name">DECODE</div>
+    <div class="card-desc">Activity 1 — 11 puzzles covering ciphers, binary, and security logic. No coding required. Built-in reference card included.</div>
+    <div class="card-meta">~25 MIN // SOLO OR TEAM // 100 XP MAX</div>
+    <div class="arrow">→</div>
+  </a>
+
+  <a href="phantombreach.html" class="card c2">
+    <div class="card-name">PHANTOM BREACH</div>
+    <div class="card-desc">Activity 2 — Choose PHANTOM (attacker) or AEGIS (defender). Three missions, real vulnerability analysis, hash cracking.</div>
+    <div class="card-meta">~60 MIN // TWO FACTIONS // 75 XP MAX PER SIDE</div>
+    <div class="arrow">→</div>
+  </a>
+
+  <div class="footer">Open on any device with a browser. No install required.</div>
+</div>
+</body>
+</html>
